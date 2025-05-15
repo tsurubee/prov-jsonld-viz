@@ -95,7 +95,9 @@
                         { selector: "node[type='Entity']", style: { "shape": "rectangle", "background-color": "#2196F3", "border-width": 2, "border-color": "#1976D2" } },
                         { selector: "node[type='Activity']", style: { "shape": "ellipse", "background-color": "#4CAF50", "border-width": 2, "border-color": "#388E3C" } },
                         { selector: "node[type='Agent']", style: { "shape": "diamond", "background-color": "#FFC107", "border-width": 2, "border-color": "#FFA000" } },
-                        { selector: "edge", style: { "width": 2, "line-color": "#90A4AE", "target-arrow-color": "#90A4AE", "target-arrow-shape": "triangle", "curve-style": "bezier" } }
+                        { selector: "node[type='Matprov']", style: { "shape": "roundrectangle", "background-color": "#B0BEC5", "border-color": "#90A4AE", "border-width": 1, "font-size": "12px", "color": "#212121", "padding": "6px" } },
+                        { selector: "edge", style: { "width": 2, "line-color": "#90A4AE", "target-arrow-color": "#90A4AE", "target-arrow-shape": "triangle", "curve-style": "bezier" } },
+                        { selector: "edge[noArrow]", style: { "target-arrow-shape": "none", "line-style": "dotted", "line-color": "#B0BEC5" } }
                     ],
                     layout: {
                         name: "elk",
@@ -112,7 +114,25 @@
                     let elements = [];
                     if (this.jsonData["@graph"]) {
                         this.jsonData["@graph"].forEach(item => {
-                            elements.push({ data: { id: item["@id"], label: item.label ? item.label[0]["@value"] : item["@id"], type: item["@type"] } });
+                            const baseId = item["@id"];
+                            const label = item.label ? item.label[0]["@value"] : baseId;
+                            elements.push({ data: { id: baseId, label: label, type: item["@type"] } });
+
+                            Object.entries(item).forEach(([key, val]) => {
+                                if (key.startsWith("matprov:") && Array.isArray(val)) {
+                                    const metaId = `${baseId}_${key}`;
+                                    const metaLabel = `${key.replace("matprov:", "")}: ${val[0]["@value"]}`;
+                                    elements.push({
+                                        data: {
+                                            id: metaId,
+                                            label: metaLabel,
+                                            type: "Matprov",
+                                            'elk.priority': -1
+                                        }
+                                    });
+                                    elements.push({ data: { source: baseId, target: metaId, noArrow: true } });
+                                }
+                            });
                         });
                         this.jsonData["@graph"].forEach(item => {
                             if (item["@type"] === "Usage") {
