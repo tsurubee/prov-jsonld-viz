@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PROV-JSONLD Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vuetify@3.0.0/dist/vuetify.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vuetify@3.0.0/dist/vuetify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror/lib/codemirror.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror/mode/javascript/javascript.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/lint.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/json-lint.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsonlint/jsonlint.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/elkjs/lib/elk.bundled.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-elk/cytoscape-elk.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/lib/codemirror.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/lint.css">
+    <style>
+        html, body, #app {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            font-family: 'Arial', sans-serif;
+        }
+        #cy {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+            height: 100vh;
+        }
+        h3 {
+            font-weight: 600;
+            color: #333;
+        }
+        .CodeMirror {
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <v-app>
+            <v-container fluid>
+                <v-row>
+                    <v-col cols="6">
+                        <h3>PROV-JSONLD Editor</h3>
+                        <textarea id="editor"></textarea>
+                    </v-col>
+                    <v-col cols="6">
+                        <h3>Graph Visualization</h3>
+                        <div id="cy"></div>
+                    </v-col>
+                </v-row>
+            </v-container>
+        </v-app>
+    </div>
+
+    <script>
+        cytoscape.use(cytoscapeElk);
+
+        const { createApp } = Vue;
+        const app = createApp({
+            data() {
+                return {
+                    jsonData: '{}',
+                    cy: null
+                };
+            },
+            mounted() {
+                const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+                    mode: {name: "javascript", json: true},
+                    lineNumbers: true,
+                    theme: "material-darker",
+                    gutters: ["CodeMirror-lint-markers"],
+                    lint: true
+                });
+                editor.on("change", () => {
+                    try {
+                        this.jsonData = JSON.parse(editor.getValue());
+                        this.updateGraph();
+                    } catch (e) {
+                        console.error("Invalid JSON");
+                    }
+                });
+                this.cy = cytoscape({
+                    container: document.getElementById("cy"),
+                    elements: [],
+                    style: [
+                        { selector: "node", style: { "label": "data(label)", "text-valign": "center", "text-halign": "center", "font-size": "14px", "width": "label", "height": "label", "padding": "12px", "color": "#fff" } },
+                        { selector: "node[type='Entity']", style: { "shape": "rectangle", "background-color": "#2196F3", "border-width": 2, "border-color": "#1976D2" } },
+                        { selector: "node[type='Activity']", style: { "shape": "ellipse", "background-color": "#4CAF50", "border-width": 2, "border-color": "#388E3C" } },
+                        { selector: "node[type='Agent']", style: { "shape": "diamond", "background-color": "#FFC107", "border-width": 2, "border-color": "#FFA000" } },
+                        { selector: "edge", style: { "width": 2, "line-color": "#90A4AE", "target-arrow-color": "#90A4AE", "target-arrow-shape": "triangle", "curve-style": "bezier" } }
+                    ],
+                    layout: {
+                        name: "elk",
+                        elk: {
+                            algorithm: "layered",
+                            'elk.direction': "DOWN",
+                            nodePlacementStrategy: "NETWORK_SIMPLEX"
+                        }
+                    }
+                });
+            },
+            methods: {
+                updateGraph() {
+                    let elements = [];
+                    if (this.jsonData["@graph"]) {
+                        this.jsonData["@graph"].forEach(item => {
+                            elements.push({ data: { id: item["@id"], label: item.label ? item.label[0]["@value"] : item["@id"], type: item["@type"] } });
+                        });
+                        this.jsonData["@graph"].forEach(item => {
+                            if (item["@type"] === "Usage") {
+                                elements.push({ data: { source: item.entity, target: item.activity } });
+                            }
+                            if (item["@type"] === "Generation") {
+                                elements.push({ data: { source: item.activity, target: item.entity } });
+                            }
+                            if (item["@type"] === "Association") {
+                                elements.push({ data: { source: item.agent, target: item.activity, label: "Association" } });
+                            }
+                        });
+                    }
+                    this.cy.elements().remove();
+                    this.cy.add(elements);
+                    this.cy.layout({
+                        name: "elk",
+                        elk: {
+                            algorithm: "layered",
+                            'elk.direction': "DOWN",
+                            nodePlacementStrategy: "NETWORK_SIMPLEX"
+                        }
+                    }).run();
+                }
+            }
+        });
+        app.use(Vuetify.createVuetify());
+        app.mount('#app');
+    </script>
+</body>
+</html>
