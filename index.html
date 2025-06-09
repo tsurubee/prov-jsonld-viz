@@ -18,9 +18,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/lib/codemirror.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/lint.css" />
   <style>
-    html,
-    body,
-    #app {
+    html, body, #app {
       height: 100%;
       margin: 0;
       padding: 0;
@@ -28,23 +26,19 @@
       font-family: 'Arial', sans-serif;
     }
     #cy {
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-  flex: 1;
-  min-height: 0;
-}
-    h3 {
-      font-weight: 600;
-      color: #333;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+      flex: 1;
+      min-height: 0;
     }
     .CodeMirror {
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  flex: 1;
-  min-height: 0;
-}
-      v-container.fill-height {
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      flex: 1;
+      min-height: 0;
+    }
+    v-container.fill-height {
       height: 100vh;
       overflow: hidden;
     }
@@ -105,10 +99,10 @@
           try {
             this.jsonRaw = editor.getValue();
             let parsed = JSON.parse(this.jsonRaw);
-if (!Array.isArray(parsed)) {
-  parsed = [{ label: parsed.label || 'Sample', "@graph": parsed["@graph"] || [] }];
-}
-this.jsonList = parsed;
+            if (!Array.isArray(parsed)) {
+              parsed = [{ label: parsed.label || 'Sample', "@graph": parsed["@graph"] || [] }];
+            }
+            this.jsonList = parsed;
             this.updateGraph();
           } catch (e) {
             console.error("Invalid JSON");
@@ -120,37 +114,69 @@ this.jsonList = parsed;
           elements: [],
           style: [
             { selector: "node", style: {
-  "label": "data(label)",
-  "text-valign": "center",
-  "text-halign": "center",
-  "font-size": "14px",
-  "padding": "12px",
-  "color": "#fff",
-  "text-wrap": "wrap",
-  "text-max-width": 100,
-  "width": "label",
-  "height": "label"
-} },
-            { selector: "node[type='Entity']", style: { "shape": "rectangle", "background-color": "#2196F3", "border-width": 2, "border-color": "#1976D2" } },
-            { selector: "node[type='Activity']", style: { "shape": "ellipse", "background-color": "#4CAF50", "border-width": 2, "border-color": "#388E3C" } },
-            { selector: "node[type='Agent']", style: { "shape": "diamond", "background-color": "#FFC107", "border-width": 2, "border-color": "#FFA000" } },
+              "label": "data(label)",
+              "text-valign": "center",
+              "text-halign": "center",
+              "font-size": "14px",
+              "padding": "12px",
+              "color": "#fff",
+              "text-wrap": "wrap",
+              "text-max-width": 100,
+              "width": "label",
+              "height": "label"
+            }},
+            { selector: "node[type='Material']", style: {
+              "shape": "rectangle",
+              "background-color": "#2196F3",
+              "border-width": 2,
+              "border-color": "#1976D2"
+            }},
+            { selector: "node[type='Tool']", style: {
+              "shape": "diamond",
+              "background-color": "#FFC107",
+              "border-width": 2,
+              "border-color": "#FFA000",
+              "color": "#000"
+            }},
+            { selector: "node[type='Agent']", style: {
+              "shape": "hexagon",
+              "background-color": "#9C27B0",
+              "border-width": 2,
+              "border-color": "#7B1FA2"
+            }},
             { selector: "node[type='Matprov']", style: {
-  "shape": "roundrectangle",
-  "background-color": "#B0BEC5",
-  "border-color": "#90A4AE",
-  "border-width": 1,
-  "font-size": "12px",
-  "color": "#212121",
-  "padding": "6px",
-  "text-wrap": "wrap",
-  "text-max-width": 160,
-  "width": "label",
-  "height": "label",
-  "text-valign": "center",
-  "text-halign": "center"
-} },
-            { selector: "edge", style: { "width": 2, "line-color": "#90A4AE", "target-arrow-color": "#90A4AE", "target-arrow-shape": "triangle", "curve-style": "bezier" } },
-            { selector: "edge[noArrow]", style: { "target-arrow-shape": "none", "line-style": "dotted", "line-color": "#B0BEC5" } }
+              "shape": "roundrectangle",
+              "background-color": "#B0BEC5",
+              "border-color": "#90A4AE",
+              "border-width": 1,
+              "font-size": "12px",
+              "color": "#212121",
+              "padding": "6px",
+              "text-wrap": "wrap",
+              "text-max-width": 160,
+              "width": "label",
+              "height": "label",
+              "text-valign": "center",
+              "text-halign": "center"
+            }},
+            { selector: "node[type='Activity']", style: {
+              "shape": "ellipse",
+              "background-color": "#4CAF50",
+              "border-width": 2,
+              "border-color": "#388E3C"
+            }},
+            { selector: "edge", style: {
+              "width": 2,
+              "line-color": "#90A4AE",
+              "target-arrow-color": "#90A4AE",
+              "target-arrow-shape": "triangle",
+              "curve-style": "bezier"
+            }},
+            { selector: "edge[noArrow]", style: {
+              "target-arrow-shape": "none",
+              "line-style": "dotted",
+              "line-color": "#B0BEC5"
+            }}
           ],
           layout: {
             name: "elk",
@@ -175,9 +201,20 @@ this.jsonList = parsed;
             const graph = current["@graph"];
             graph.forEach(item => {
               const baseId = item["@id"];
-              const label = item.label ? item.label[0]["@value"] : baseId;
               if (!baseId) return;
-elements.push({ data: { id: baseId, label: label, type: item["@type"] } });
+
+              const label = item.label ? item.label[0]["@value"] : baseId;
+              let nodeType = item["@type"];
+              if (nodeType === "Entity") {
+                const subtype = item.type?.[0]?.["@value"];
+                if (subtype === "tool") {
+                  nodeType = "Tool";
+                } else if (subtype === "material") {
+                  nodeType = "Material";
+                }
+              }
+
+              elements.push({ data: { id: baseId, label, type: nodeType } });
 
               const metaEntries = Object.entries(item).filter(([key, val]) => key.startsWith("matprov:") && Array.isArray(val));
               if (metaEntries.length > 0) {
