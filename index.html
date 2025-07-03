@@ -4,52 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PROV-JSONLD Viewer</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vuetify@3.0.0/dist/vuetify.min.css" />
+  <link href="https://cdn.jsdelivr.net/npm/vuetify@3.3.10/dist/vuetify.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vuetify@3.0.0/dist/vuetify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vuetify@3.3.10/dist/vuetify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror/lib/codemirror.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror/mode/javascript/javascript.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/lint.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/json-lint.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsonlint/jsonlint.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsonlint-mod/dist/jsonlint.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape/dist/cytoscape.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/elkjs/lib/elk.bundled.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cytoscape-elk/cytoscape-elk.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/lib/codemirror.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror/addon/lint/lint.css" />
   <style>
-    html, body, #app {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      background-color: #f5f5f5;
-      font-family: 'Arial', sans-serif;
-    }
-    #cy {
-      background-color: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-      flex: 1;
-      min-height: 0;
-    }
-    .CodeMirror {
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      flex: 1;
-      min-height: 0;
-    }
-    v-container.fill-height {
-      height: 100vh;
-      overflow: hidden;
-    }
-    v-row {
-      height: 100%;
-      overflow: hidden;
-    }
-    .CodeMirror, #cy {
-      height: 100%;
-      overflow: auto;
-    }
+    html, body, #app { height: 100%; margin: 0; padding: 0; font-family: 'Arial', sans-serif; }
+    #cy { background: #fff; flex: 1; min-height: 0; }
+    .CodeMirror { flex: 1; min-height: 0; border: 1px solid #ccc; border-radius: 8px; }
+    .v-container.fill-height { height: 100vh; overflow: hidden; }
+    .v-row { height: 100%; overflow: hidden; }
+    .CodeMirror, #cy { height: 100%; overflow: auto; }
   </style>
 </head>
 <body>
@@ -69,13 +43,33 @@
             <div id="cy"></div>
           </v-col>
         </v-row>
+
+        <!-- 編集ダイアログ -->
+        <v-dialog v-model="editDialog" max-width="500">
+          <v-card>
+            <v-card-title>ノード編集</v-card-title>
+            <v-card-text>
+              <v-text-field label="ラベル" v-model="editLabel"></v-text-field>
+              <v-divider class="my-2"></v-divider>
+              <div v-for="(val, key) in editMeta" :key="key">
+                <v-text-field :label="key.replace('matprov:', '')" v-model="editMeta[key]"></v-text-field>
+              </div>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn text @click="editDialog = false">キャンセル</v-btn>
+              <v-btn color="primary" @click="saveNodeEdit">保存</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+
       </v-container>
     </v-app>
   </div>
 
   <script>
     cytoscape.use(cytoscapeElk);
-    const { createApp, watch } = Vue;
+    const { createApp } = Vue;
 
     const app = createApp({
       data() {
@@ -83,11 +77,16 @@
           jsonRaw: '[]',
           jsonList: [],
           selectedIndex: 0,
-          cy: null
+          cy: null,
+          editor: null,
+          editDialog: false,
+          editNode: null,
+          editLabel: '',
+          editMeta: {}
         };
       },
       mounted() {
-        const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+        this.editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
           mode: { name: "javascript", json: true },
           lineNumbers: true,
           theme: "material-darker",
@@ -95,9 +94,9 @@
           lint: true
         });
 
-        editor.on("change", () => {
+        this.editor.on("change", () => {
           try {
-            this.jsonRaw = editor.getValue();
+            this.jsonRaw = this.editor.getValue();
             let parsed = JSON.parse(this.jsonRaw);
             if (!Array.isArray(parsed)) {
               parsed = [{ label: parsed.label || 'Sample', "@graph": parsed["@graph"] || [] }];
@@ -114,68 +113,35 @@
           elements: [],
           style: [
             { selector: "node", style: {
-              "label": "data(label)",
-              "text-valign": "center",
-              "text-halign": "center",
-              "font-size": "14px",
-              "padding": "12px",
-              "color": "#fff",
-              "text-wrap": "wrap",
-              "text-max-width": 100,
-              "width": "label",
-              "height": "label"
+              "label": "data(label)", "text-valign": "center", "text-halign": "center",
+              "font-size": "14px", "padding": "12px", "color": "#fff",
+              "text-wrap": "wrap", "text-max-width": 100,
+              "width": "label", "height": "label"
             }},
             { selector: "node[type='Material']", style: {
-              "shape": "rectangle",
-              "background-color": "#2196F3",
-              "border-width": 2,
-              "border-color": "#1976D2"
+              "shape": "rectangle", "background-color": "#2196F3", "border-width": 2, "border-color": "#1976D2"
             }},
             { selector: "node[type='Tool']", style: {
-              "shape": "diamond",
-              "background-color": "#FFC107",
-              "border-width": 2,
-              "border-color": "#FFA000",
-              "color": "#000"
+              "shape": "diamond", "background-color": "#FFC107", "border-width": 2, "border-color": "#FFA000", "color": "#000"
             }},
             { selector: "node[type='Agent']", style: {
-              "shape": "hexagon",
-              "background-color": "#9C27B0",
-              "border-width": 2,
-              "border-color": "#7B1FA2"
-            }},
-            { selector: "node[type='Matprov']", style: {
-              "shape": "roundrectangle",
-              "background-color": "#B0BEC5",
-              "border-color": "#90A4AE",
-              "border-width": 1,
-              "font-size": "12px",
-              "color": "#212121",
-              "padding": "6px",
-              "text-wrap": "wrap",
-              "text-max-width": 160,
-              "width": "label",
-              "height": "label",
-              "text-valign": "center",
-              "text-halign": "center"
+              "shape": "hexagon", "background-color": "#9C27B0", "border-width": 2, "border-color": "#7B1FA2"
             }},
             { selector: "node[type='Activity']", style: {
-              "shape": "ellipse",
-              "background-color": "#4CAF50",
-              "border-width": 2,
-              "border-color": "#388E3C"
+              "shape": "ellipse", "background-color": "#4CAF50", "border-width": 2, "border-color": "#388E3C"
+            }},
+            { selector: "node[type='Matprov']", style: {
+              "shape": "roundrectangle", "background-color": "#B0BEC5", "border-color": "#90A4AE",
+              "border-width": 1, "font-size": "12px", "color": "#212121",
+              "padding": "6px", "text-wrap": "wrap", "text-max-width": 160,
+              "width": "label", "height": "label", "text-valign": "center", "text-halign": "center"
             }},
             { selector: "edge", style: {
-              "width": 2,
-              "line-color": "#90A4AE",
-              "target-arrow-color": "#90A4AE",
-              "target-arrow-shape": "triangle",
-              "curve-style": "bezier"
+              "width": 2, "line-color": "#90A4AE", "target-arrow-color": "#90A4AE",
+              "target-arrow-shape": "triangle", "curve-style": "bezier"
             }},
             { selector: "edge[noArrow]", style: {
-              "target-arrow-shape": "none",
-              "line-style": "dotted",
-              "line-color": "#B0BEC5"
+              "target-arrow-shape": "none", "line-style": "dotted", "line-color": "#B0BEC5"
             }}
           ],
           layout: {
@@ -187,11 +153,23 @@
             }
           }
         });
-      },
-      watch: {
-        selectedIndex() {
-          this.updateGraph();
-        }
+
+        this.cy.on('tap', 'node', (event) => {
+          const node = event.target;
+          const baseId = node.id();
+          const currentGraph = this.jsonList[this.selectedIndex]["@graph"];
+          const target = currentGraph.find(e => e["@id"] === baseId);
+          if (!target) return;
+
+          this.editNode = target;
+          this.editLabel = target.label?.[0]?.["@value"] || '';
+          this.editMeta = Object.fromEntries(
+            Object.entries(target)
+              .filter(([k]) => k.startsWith("matprov:"))
+              .map(([k, v]) => [k, v[0]["@value"]])
+          );
+          this.editDialog = true;
+        });
       },
       methods: {
         updateGraph() {
@@ -202,24 +180,21 @@
             graph.forEach(item => {
               const baseId = item["@id"];
               if (!baseId) return;
-
-              const label = item.label ? item.label[0]["@value"] : baseId;
+              const label = item.label?.[0]?.["@value"] || baseId;
               let nodeType = item["@type"];
               if (nodeType === "Entity") {
                 const subtype = item.type?.[0]?.["@value"];
-                if (subtype === "tool") {
-                  nodeType = "Tool";
-                } else if (subtype === "material") {
-                  nodeType = "Material";
-                }
+                if (subtype === "tool") nodeType = "Tool";
+                else if (subtype === "material") nodeType = "Material";
               }
 
               elements.push({ data: { id: baseId, label, type: nodeType } });
 
-              const metaEntries = Object.entries(item).filter(([key, val]) => key.startsWith("matprov:") && Array.isArray(val));
+              const metaEntries = Object.entries(item)
+                .filter(([key, val]) => key.startsWith("matprov:") && Array.isArray(val));
               if (metaEntries.length > 0) {
                 const metaId = `${baseId}_meta`;
-                const metaLabel = metaEntries.map(([key, val]) => `${key.replace("matprov:", "")}: ${val[0]["@value"]}`).join("\n");
+                const metaLabel = metaEntries.map(([k, v]) => `${k.replace("matprov:", "")}: ${v[0]["@value"]}`).join("\n");
                 elements.push({ data: { id: metaId, label: metaLabel, type: "Matprov" } });
                 elements.push({ data: { source: baseId, target: metaId, noArrow: true } });
               }
@@ -247,6 +222,22 @@
               nodePlacementStrategy: "NETWORK_SIMPLEX"
             }
           }).run();
+        },
+        saveNodeEdit() {
+          if (!this.editNode) return;
+          this.editNode.label = [{ "@value": this.editLabel, "@language": "en" }];
+          for (const [k, v] of Object.entries(this.editMeta)) {
+            this.editNode[k] = [{ "@value": v, "@type": "xsd:string" }];
+          }
+          this.editDialog = false;
+          this.updateGraph();
+          this.jsonRaw = JSON.stringify(this.jsonList, null, 2);
+          this.editor.setValue(this.jsonRaw);  // ✅ これで CodeMirror に反映！
+        }
+      },
+      watch: {
+        selectedIndex() {
+          this.updateGraph();
         }
       }
     });
