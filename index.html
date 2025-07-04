@@ -225,14 +225,27 @@
         },
         saveNodeEdit() {
           if (!this.editNode) return;
-          this.editNode.label = [{ "@value": this.editLabel, "@language": "en" }];
-          for (const [k, v] of Object.entries(this.editMeta)) {
-            this.editNode[k] = [{ "@value": v, "@type": "xsd:string" }];
+
+          // ラベルの @value のみ更新、@language は維持
+          if (Array.isArray(this.editNode.label) && this.editNode.label.length > 0) {
+            this.editNode.label[0]["@value"] = this.editLabel;
+          } else {
+            this.editNode.label = [{ "@value": this.editLabel }];
           }
+
+          // matprov:* の @value のみ更新、@type は維持
+          for (const [k, v] of Object.entries(this.editMeta)) {
+            if (Array.isArray(this.editNode[k]) && this.editNode[k].length > 0) {
+              this.editNode[k][0]["@value"] = v;
+            } else {
+              this.editNode[k] = [{ "@value": v }];
+            }
+          }
+
           this.editDialog = false;
           this.updateGraph();
           this.jsonRaw = JSON.stringify(this.jsonList, null, 2);
-          this.editor.setValue(this.jsonRaw);  // ✅ これで CodeMirror に反映！
+          this.editor.setValue(this.jsonRaw);
         }
       },
       watch: {
